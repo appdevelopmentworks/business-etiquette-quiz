@@ -7,6 +7,7 @@ import type {
   QuizMode,
   QuizResultSummary,
   StoredQuizSession,
+  TagSummary,
   TopicSummary,
 } from "@/lib/types";
 
@@ -68,7 +69,6 @@ export const buildResultSummary = (session: StoredQuizSession): QuizResultSummar
   const accuracyRate = answeredCount === 0 ? 0 : Math.round((correctCount / answeredCount) * 100);
 
   const topicSummaryMap = new Map<string, TopicSummary>();
-  const tagMistakes = new Map<string, number>();
   const reviewQuestionIds = new Set<string>();
 
   session.attempts.forEach((attempt) => {
@@ -96,13 +96,11 @@ export const buildResultSummary = (session: StoredQuizSession): QuizResultSummar
     topicSummary.answeredCount += 1;
     if (attempt.isCorrect) {
       topicSummary.correctCount += 1;
-    } else {
-      topicSummary.incorrectCount += 1;
-      reviewQuestionIds.add(question.id);
-      question.tags.forEach((tag) => {
-        tagMistakes.set(tag, (tagMistakes.get(tag) ?? 0) + 1);
-      });
+      return;
     }
+
+    topicSummary.incorrectCount += 1;
+    reviewQuestionIds.add(question.id);
   });
 
   const topicSummaries = Array.from(topicSummaryMap.values()).map((summary) => ({
@@ -113,10 +111,10 @@ export const buildResultSummary = (session: StoredQuizSession): QuizResultSummar
         : Math.round((summary.correctCount / summary.answeredCount) * 100),
   }));
 
-  const weakestTags = Array.from(tagMistakes.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([tag]) => tag);
+  const weakTagSummaries = buildTagSummaries(session.attempts)
+    .filter(isReviewWorthyTagSummary)
+    .slice(0, 5);
+  const weakestTags = weakTagSummaries.slice(0, 3).map((summary) => summary.tag);
 
   return {
     sessionId: session.id,
@@ -126,6 +124,7 @@ export const buildResultSummary = (session: StoredQuizSession): QuizResultSummar
     incorrectCount,
     accuracyRate,
     weakestTags,
+    weakTagSummaries,
     topicSummaries,
     reviewQuestionIds: Array.from(reviewQuestionIds),
     finishedAt: new Date().toISOString(),
@@ -179,21 +178,182 @@ export const aggregateTopicProgress = (attempts: AttemptRecord[]) => {
 };
 
 export const getReviewCandidates = (attempts: AttemptRecord[]) => {
-  const latestAttempts = new Map<string, AttemptRecord>();
+  const questionStats = buildQuestionReviewStats(attempts);
 
-  attempts
-    .slice()
-    .sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime())
-    .forEach((attempt) => {
-      latestAttempts.set(attempt.questionId, attempt);
-    });
-
-  return Array.from(latestAttempts.values())
-    .filter((attempt) => !attempt.isCorrect)
-    .map((attempt) => attempt.questionId);
+  return Array.from(questionStats.values())
+    .filter((stat) => stat.priorityScore > 0)
+    .sort((a, b) => b.priorityScore - a.priorityScore || b.incorrectCount - a.incorrectCount)
+    .map((stat) => stat.questionId);
 };
 
 export const formatAccuracy = (value: number) => `${value}%`;
+
+export const buildTagSummaries = (attempts: AttemptRecord[]): TagSummary[] => {
+  const questionStats = buildQuestionReviewStats(attempts);
+  const summaryMap = new Map<
+    string,
+    {
+      tag: string;
+      answeredCount: number;
+      correctCount: number;
+      incorrectCount: number;
+      reviewQuestionIds: Set<string>;
+      priorityScore: number;
+    }
+  >();
+
+  attempts.forEach((attempt) => {
+    const question = getQuestionById(attempt.questionId);
+    if (!question) {
+      return;
+    }
+
+    question.tags.forEach((tag) => {
+      if (!summaryMap.has(tag)) {
+        summaryMap.set(tag, {
+          tag,
+          answeredCount: 0,
+          correctCount: 0,
+          incorrectCount: 0,
+          reviewQuestionIds: new Set<string>(),
+          priorityScore: 0,
+        });
+      }
+
+      const summary = summaryMap.get(tag);
+      if (!summary) {
+        return;
+      }
+
+      summary.answeredCount += 1;
+      if (attempt.isCorrect) {
+        summary.correctCount += 1;
+      } else {
+        summary.incorrectCount += 1;
+      }
+    });
+  });
+
+  questionStats.forEach((stat) => {
+    const question = getQuestionById(stat.questionId);
+    if (!question) {
+      return;
+    }
+
+    question.tags.forEach((tag) => {
+      const summary = summaryMap.get(tag);
+      if (!summary) {
+        return;
+      }
+
+      if (stat.priorityScore > 0) {
+        summary.reviewQuestionIds.add(stat.questionId);
+      }
+
+      summary.priorityScore += stat.priorityScore;
+    });
+  });
+
+  return Array.from(summaryMap.values())
+    .map((summary) => ({
+      tag: summary.tag,
+      answeredCount: summary.answeredCount,
+      correctCount: summary.correctCount,
+      incorrectCount: summary.incorrectCount,
+      accuracyRate:
+        summary.answeredCount === 0
+          ? 0
+          : Math.round((summary.correctCount / summary.answeredCount) * 100),
+      reviewQuestionIds: Array.from(summary.reviewQuestionIds),
+      priorityScore: summary.priorityScore,
+    }))
+    .filter((summary) => summary.answeredCount > 0)
+    .sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) {
+        return b.priorityScore - a.priorityScore;
+      }
+      if (b.incorrectCount !== a.incorrectCount) {
+        return b.incorrectCount - a.incorrectCount;
+      }
+      if (a.accuracyRate !== b.accuracyRate) {
+        return a.accuracyRate - b.accuracyRate;
+      }
+      return b.answeredCount - a.answeredCount;
+    });
+};
+
+export const getReviewQuestionIdsForTagSummaries = ({
+  tagSummaries,
+  maxTags = 3,
+}: {
+  tagSummaries: TagSummary[];
+  maxTags?: number;
+}) =>
+  Array.from(
+    new Set(
+      tagSummaries
+        .slice(0, maxTags)
+        .flatMap((summary) => summary.reviewQuestionIds),
+    ),
+  );
+
+export const getPrioritizedReviewQuestionIds = ({
+  attempts,
+  bookmarkedIds = [],
+  maxTags = 3,
+}: {
+  attempts: AttemptRecord[];
+  bookmarkedIds?: string[];
+  maxTags?: number;
+}) => {
+  const weakTagSummaries = buildTagSummaries(attempts).filter(isReviewWorthyTagSummary);
+
+  return Array.from(
+    new Set([
+      ...getReviewQuestionIdsForTagSummaries({ tagSummaries: weakTagSummaries, maxTags }),
+      ...getReviewCandidates(attempts),
+      ...bookmarkedIds,
+    ]),
+  );
+};
+
+export const getTagReviewQuestionIds = ({
+  attempts,
+  tag,
+  bookmarkedIds = [],
+}: {
+  attempts: AttemptRecord[];
+  tag: string;
+  bookmarkedIds?: string[];
+}) => {
+  const bookmarkSet = new Set(bookmarkedIds);
+  const questionStats = buildQuestionReviewStats(attempts);
+
+  return questions
+    .filter((question) => question.tags.includes(tag) && question.isActive)
+    .map((question) => {
+      const stat = questionStats.get(question.id);
+      const bookmarkBoost = bookmarkSet.has(question.id) ? 2 : 0;
+      const priorityScore = (stat?.priorityScore ?? 0) + bookmarkBoost;
+
+      return {
+        questionId: question.id,
+        priorityScore,
+        answeredCount: stat?.attemptCount ?? 0,
+        latestAnsweredAt: stat?.latestAnsweredAt ?? "",
+      };
+    })
+    .sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) {
+        return b.priorityScore - a.priorityScore;
+      }
+      if (a.answeredCount !== b.answeredCount) {
+        return a.answeredCount - b.answeredCount;
+      }
+      return b.latestAnsweredAt.localeCompare(a.latestAnsweredAt);
+    })
+    .map((item) => item.questionId);
+};
 
 const shuffle = <T,>(items: T[]) => {
   const cloned = [...items];
@@ -203,3 +363,66 @@ const shuffle = <T,>(items: T[]) => {
   }
   return cloned;
 };
+
+const buildQuestionReviewStats = (attempts: AttemptRecord[]) => {
+  const sortedAttempts = attempts
+    .slice()
+    .sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime());
+
+  const stats = new Map<
+    string,
+    {
+      questionId: string;
+      attemptCount: number;
+      incorrectCount: number;
+      latestIsCorrect: boolean;
+      latestAnsweredAt: string;
+      priorityScore: number;
+    }
+  >();
+
+  sortedAttempts.forEach((attempt) => {
+    if (!stats.has(attempt.questionId)) {
+      stats.set(attempt.questionId, {
+        questionId: attempt.questionId,
+        attemptCount: 0,
+        incorrectCount: 0,
+        latestIsCorrect: true,
+        latestAnsweredAt: "",
+        priorityScore: 0,
+      });
+    }
+
+    const stat = stats.get(attempt.questionId);
+    if (!stat) {
+      return;
+    }
+
+    stat.attemptCount += 1;
+    if (!attempt.isCorrect) {
+      stat.incorrectCount += 1;
+    }
+
+    stat.latestIsCorrect = attempt.isCorrect;
+    stat.latestAnsweredAt = attempt.answeredAt;
+  });
+
+  stats.forEach((stat) => {
+    let priorityScore = stat.incorrectCount * 2;
+
+    if (!stat.latestIsCorrect) {
+      priorityScore += 4;
+    }
+
+    if (stat.attemptCount > 0 && stat.incorrectCount / stat.attemptCount >= 0.5) {
+      priorityScore += 2;
+    }
+
+    stat.priorityScore = priorityScore;
+  });
+
+  return stats;
+};
+
+const isReviewWorthyTagSummary = (summary: TagSummary) =>
+  summary.incorrectCount > 0 || summary.reviewQuestionIds.length > 0;

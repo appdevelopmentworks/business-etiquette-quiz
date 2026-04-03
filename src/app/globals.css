@@ -184,7 +184,8 @@ p {
 .feedback-card,
 .review-item,
 .progress-item,
-.topic-card {
+.topic-card,
+.tag-summary-card {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface-strong);
@@ -444,6 +445,38 @@ p {
   cursor: pointer;
 }
 
+.tag-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.tag-summary-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 20px;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 246, 249, 0.94));
+}
+
+button.tag-summary-card {
+  cursor: pointer;
+}
+
+.tag-summary-card.is-selected {
+  border-color: rgba(226, 92, 112, 0.46);
+  background: linear-gradient(180deg, rgba(255, 238, 243, 0.98), rgba(255, 252, 252, 0.98));
+  box-shadow: 0 16px 32px rgba(226, 92, 112, 0.12);
+}
+
+.tag-summary-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .callout {
   display: flex;
   align-items: center;
@@ -585,7 +618,8 @@ p {
   .dual-grid,
   .topic-grid,
   .stats-grid,
-  .mode-grid {
+  .mode-grid,
+  .tag-summary-grid {
     grid-template-columns: 1fr;
   }
 }

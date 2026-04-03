@@ -76,6 +76,16 @@ export type TopicSummary = {
   accuracyRate: number;
 };
 
+export type TagSummary = {
+  tag: string;
+  answeredCount: number;
+  correctCount: number;
+  incorrectCount: number;
+  accuracyRate: number;
+  reviewQuestionIds: string[];
+  priorityScore: number;
+};
+
 export type QuizResultSummary = {
   sessionId: string;
   title: string;
@@ -84,6 +94,7 @@ export type QuizResultSummary = {
   incorrectCount: number;
   accuracyRate: number;
   weakestTags: string[];
+  weakTagSummaries: TagSummary[];
   topicSummaries: TopicSummary[];
   reviewQuestionIds: string[];
   finishedAt: string;

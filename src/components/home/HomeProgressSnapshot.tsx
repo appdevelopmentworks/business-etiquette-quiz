@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { formatAccuracy, getReviewCandidates } from "@/lib/quiz";
-import { getAttemptHistory } from "@/lib/storage";
+import { formatAccuracy, getPrioritizedReviewQuestionIds } from "@/lib/quiz";
+import { getAttemptHistory, getBookmarks } from "@/lib/storage";
 
 type Snapshot = {
   answeredCount: number;
@@ -20,6 +20,7 @@ export const HomeProgressSnapshot = () => {
 
   useEffect(() => {
     const attempts = getAttemptHistory();
+    const bookmarkedIds = getBookmarks().map((bookmark) => bookmark.questionId);
     const correctCount = attempts.filter((attempt) => attempt.isCorrect).length;
     const accuracyRate =
       attempts.length === 0 ? 0 : Math.round((correctCount / attempts.length) * 100);
@@ -27,7 +28,7 @@ export const HomeProgressSnapshot = () => {
     setSnapshot({
       answeredCount: attempts.length,
       accuracyRate,
-      reviewCount: getReviewCandidates(attempts).length,
+      reviewCount: getPrioritizedReviewQuestionIds({ attempts, bookmarkedIds, maxTags: 3 }).length,
     });
   }, []);
 

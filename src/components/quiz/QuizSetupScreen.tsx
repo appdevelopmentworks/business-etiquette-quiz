@@ -9,9 +9,9 @@ import {
   buildSession,
   getQuestionsByTopicIds,
   getQuestionsForMode,
-  getReviewCandidates,
+  getPrioritizedReviewQuestionIds,
 } from "@/lib/quiz";
-import { getAttemptHistory, saveCurrentSession } from "@/lib/storage";
+import { getAttemptHistory, getBookmarks, saveCurrentSession } from "@/lib/storage";
 import type { Difficulty, Question, QuizMode } from "@/lib/types";
 
 type QuizSetupScreenProps = {
@@ -29,7 +29,15 @@ export const QuizSetupScreen = ({ initialTopicId = "all" }: QuizSetupScreenProps
   const [mode, setMode] = useState<QuizMode>("normal");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const reviewCandidates = useMemo(() => getReviewCandidates(getAttemptHistory()), []);
+  const reviewCandidates = useMemo(
+    () =>
+      getPrioritizedReviewQuestionIds({
+        attempts: getAttemptHistory(),
+        bookmarkedIds: getBookmarks().map((bookmark) => bookmark.questionId),
+        maxTags: 3,
+      }),
+    [],
+  );
   const selectedTopicIds =
     selectedTopicId === "all" ? topics.map((topic) => topic.id) : [selectedTopicId];
 
@@ -200,8 +208,8 @@ export const QuizSetupScreen = ({ initialTopicId = "all" }: QuizSetupScreenProps
       <div className="card card--outline">
         <h2 className="section-title">いま入っている初期問題</h2>
         <p className="muted">
-          現在は {questions.length} 問のMVPデータを登録しています。要件定義どおり、今後は問題バンクを広げて
-          80〜100問以上へ拡張しやすい構成です。
+          現在は {questions.length} 問の問題データを登録しています。問題バンクをさらに増やしても運用しやすいよう、
+          トピックとタグの両方から出題を組み立てられる構成です。
         </p>
       </div>
     </section>

@@ -22,7 +22,7 @@ export const QuizResultScreen = ({ sessionId }: QuizResultScreenProps) => {
     return (
       <section className="card page-stack">
         <h1>結果が見つかりません</h1>
-        <p className="muted">新しくクイズを開始すると、ここに学習結果が表示されます。</p>
+        <p className="muted">新しくクイズを始めると、ここに学習結果が表示されます。</p>
         <Link href="/quiz" className="button button--primary">
           クイズ設定へ
         </Link>
@@ -30,42 +30,73 @@ export const QuizResultScreen = ({ sessionId }: QuizResultScreenProps) => {
     );
   }
 
+  const weakTagSummaries = summary.weakTagSummaries?.slice(0, 4) ?? [];
+  const primaryWeakTag = weakTagSummaries[0]?.tag;
+
   return (
     <section className="page-stack">
       <header className="page-header">
         <span className="eyebrow">Result</span>
         <h1>{summary.title}の結果</h1>
-        <p className="lead">点数だけでなく、次にどこを伸ばせばよいかも見える形にしています。</p>
+        <p className="lead">
+          数字だけで終わらせず、次にどのタグを復習すると伸びやすいかまで、すぐ分かる形でまとめています。
+        </p>
       </header>
 
       <div className="stats-grid">
+        <article className="stat-card">
+          <span className="stat-card__label">回答数</span>
+          <strong className="stat-card__value">{summary.answeredCount}</strong>
+        </article>
         <article className="stat-card">
           <span className="stat-card__label">正答率</span>
           <strong className="stat-card__value">{formatAccuracy(summary.accuracyRate)}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-card__label">正解数</span>
-          <strong className="stat-card__value">{summary.correctCount}</strong>
-        </article>
-        <article className="stat-card">
-          <span className="stat-card__label">復習候補</span>
+          <span className="stat-card__label">この回の要復習</span>
           <strong className="stat-card__value">{summary.reviewQuestionIds.length}</strong>
         </article>
       </div>
 
       <article className="card card--soft page-stack">
-        <h2 className="section-title">苦手になりやすいタグ</h2>
-        <div className="chip-row">
-          {summary.weakestTags.length > 0 ? (
-            summary.weakestTags.map((tag) => (
-              <span key={tag} className="chip chip--static">
-                {tag}
-              </span>
-            ))
-          ) : (
-            <span className="muted">今回は大きな偏りはありませんでした。</span>
-          )}
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">優先して見直したいタグ</h2>
+            <p className="muted">
+              直近の誤答と苦手の重なりから、復習効果が高いタグを抽出しています。
+            </p>
+          </div>
+          <Link href="/review" className="text-link">
+            復習一覧へ
+          </Link>
         </div>
+
+        {weakTagSummaries.length > 0 ? (
+          <div className="tag-summary-grid">
+            {weakTagSummaries.map((tagSummary) => (
+              <article key={tagSummary.tag} className="tag-summary-card">
+                <div className="tag-summary-card__head">
+                  <strong>{tagSummary.tag}</strong>
+                  <span className="pill">{tagSummary.accuracyRate}%</span>
+                </div>
+                <p className="muted">
+                  間違い {tagSummary.incorrectCount}問 / 要復習 {tagSummary.reviewQuestionIds.length}問 /
+                  回答 {tagSummary.answeredCount}問
+                </p>
+                <Link
+                  href={`/review?tag=${encodeURIComponent(tagSummary.tag)}`}
+                  className="button button--secondary"
+                >
+                  このタグを復習
+                </Link>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">
+            今回は大きく崩れたタグがありませんでした。この調子で別テーマも広げていきましょう。
+          </p>
+        )}
       </article>
 
       <article className="card">
@@ -76,7 +107,7 @@ export const QuizResultScreen = ({ sessionId }: QuizResultScreenProps) => {
               <div>
                 <strong>{topicSummary.topicName}</strong>
                 <p className="muted">
-                  {topicSummary.correctCount} / {topicSummary.answeredCount} 正解
+                  {topicSummary.correctCount} / {topicSummary.answeredCount} 正答
                 </p>
               </div>
               <span className="pill">{formatAccuracy(topicSummary.accuracyRate)}</span>
@@ -86,8 +117,11 @@ export const QuizResultScreen = ({ sessionId }: QuizResultScreenProps) => {
       </article>
 
       <div className="actions-row">
-        <Link href="/review" className="button button--secondary">
-          復習へ進む
+        <Link
+          href={primaryWeakTag ? `/review?tag=${encodeURIComponent(primaryWeakTag)}` : "/review"}
+          className="button button--secondary"
+        >
+          {primaryWeakTag ? `${primaryWeakTag}を復習` : "復習一覧へ"}
         </Link>
         <Link href="/quiz" className="button button--primary">
           もう一度学ぶ
