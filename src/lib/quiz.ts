@@ -7,6 +7,8 @@ import type {
   QuizMode,
   QuizResultSummary,
   StoredQuizSession,
+  TagHistoryPoint,
+  TagImprovementSummary,
   TagSummary,
   TopicSummary,
 } from "@/lib/types";
@@ -282,6 +284,124 @@ export const buildTagSummaries = (attempts: AttemptRecord[]): TagSummary[] => {
     });
 };
 
+export const buildTagImprovementSummaries = (
+  attempts: AttemptRecord[],
+): TagImprovementSummary[] => {
+  const sortedAttempts = attempts
+    .slice()
+    .sort((a, b) => new Date(a.answeredAt).getTime() - new Date(b.answeredAt).getTime());
+  const tagSessionMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        sessionId: string;
+        answeredAt: string;
+        answeredCount: number;
+        correctCount: number;
+      }
+    >
+  >();
+
+  sortedAttempts.forEach((attempt) => {
+    const question = getQuestionById(attempt.questionId);
+    if (!question) {
+      return;
+    }
+
+    question.tags.forEach((tag) => {
+      if (!tagSessionMap.has(tag)) {
+        tagSessionMap.set(tag, new Map());
+      }
+
+      const sessionMap = tagSessionMap.get(tag);
+      if (!sessionMap) {
+        return;
+      }
+
+      if (!sessionMap.has(attempt.sessionId)) {
+        sessionMap.set(attempt.sessionId, {
+          sessionId: attempt.sessionId,
+          answeredAt: attempt.answeredAt,
+          answeredCount: 0,
+          correctCount: 0,
+        });
+      }
+
+      const point = sessionMap.get(attempt.sessionId);
+      if (!point) {
+        return;
+      }
+
+      point.answeredCount += 1;
+      if (attempt.isCorrect) {
+        point.correctCount += 1;
+      }
+
+      if (point.answeredAt.localeCompare(attempt.answeredAt) < 0) {
+        point.answeredAt = attempt.answeredAt;
+      }
+    });
+  });
+
+  return Array.from(tagSessionMap.entries())
+    .map(([tag, sessionMap]) => {
+      const history = Array.from(sessionMap.values())
+        .sort((a, b) => a.answeredAt.localeCompare(b.answeredAt))
+        .map(
+          (point): TagHistoryPoint => ({
+            sessionId: point.sessionId,
+            label: formatHistoryLabel(point.answeredAt),
+            answeredAt: point.answeredAt,
+            answeredCount: point.answeredCount,
+            correctCount: point.correctCount,
+            accuracyRate:
+              point.answeredCount === 0
+                ? 0
+                : Math.round((point.correctCount / point.answeredCount) * 100),
+          }),
+        );
+
+      const firstAccuracyRate = history[0]?.accuracyRate ?? 0;
+      const latestAccuracyRate = history.at(-1)?.accuracyRate ?? 0;
+      const previousAccuracyRate =
+        history.length >= 2 ? history[history.length - 2].accuracyRate : latestAccuracyRate;
+      const improvementDelta = latestAccuracyRate - firstAccuracyRate;
+      const trend: TagImprovementSummary["trend"] =
+        latestAccuracyRate > previousAccuracyRate
+          ? "up"
+          : latestAccuracyRate < previousAccuracyRate
+            ? "down"
+            : "flat";
+
+      return {
+        tag,
+        answeredCount: history.reduce((total, point) => total + point.answeredCount, 0),
+        studiedSessionCount: history.length,
+        firstAccuracyRate,
+        latestAccuracyRate,
+        bestAccuracyRate: history.reduce(
+          (best, point) => Math.max(best, point.accuracyRate),
+          history[0]?.accuracyRate ?? 0,
+        ),
+        improvementDelta,
+        trend,
+        lastStudiedAt: history.at(-1)?.answeredAt ?? "",
+        history,
+      };
+    })
+    .filter((summary) => summary.answeredCount > 0)
+    .sort((a, b) => {
+      if (b.studiedSessionCount !== a.studiedSessionCount) {
+        return b.studiedSessionCount - a.studiedSessionCount;
+      }
+      if (b.lastStudiedAt !== a.lastStudiedAt) {
+        return b.lastStudiedAt.localeCompare(a.lastStudiedAt);
+      }
+      return b.improvementDelta - a.improvementDelta;
+    });
+};
+
 export const getReviewQuestionIdsForTagSummaries = ({
   tagSummaries,
   maxTags = 3,
@@ -426,3 +546,9 @@ const buildQuestionReviewStats = (attempts: AttemptRecord[]) => {
 
 const isReviewWorthyTagSummary = (summary: TagSummary) =>
   summary.incorrectCount > 0 || summary.reviewQuestionIds.length > 0;
+
+const formatHistoryLabel = (value: string) =>
+  new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+  }).format(new Date(value));

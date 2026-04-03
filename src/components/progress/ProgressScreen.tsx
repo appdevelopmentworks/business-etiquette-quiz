@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   aggregateTopicProgress,
+  buildTagImprovementSummaries,
   buildTagSummaries,
   formatAccuracy,
   getPrioritizedReviewQuestionIds,
@@ -29,6 +30,13 @@ export const ProgressScreen = () => {
       buildTagSummaries(attempts)
         .filter((summary) => summary.incorrectCount > 0 || summary.reviewQuestionIds.length > 0)
         .slice(0, 6),
+    [attempts],
+  );
+  const tagImprovementSummaries = useMemo(
+    () =>
+      buildTagImprovementSummaries(attempts)
+        .filter((summary) => summary.studiedSessionCount >= 2)
+        .slice(0, 8),
     [attempts],
   );
   const reviewQuestionIds = useMemo(
@@ -107,6 +115,90 @@ export const ProgressScreen = () => {
         )}
       </article>
 
+      <article className="card page-stack">
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">タグごとの改善履歴</h2>
+            <p className="muted">
+              同じタグを複数回学んだときの正答率の変化です。初回から最新までの伸び幅を確認できます。
+            </p>
+          </div>
+        </div>
+
+        {tagImprovementSummaries.length > 0 ? (
+          <div className="tag-history-grid">
+            {tagImprovementSummaries.map((summary) => {
+              const historyPoints = summary.history.slice(-6);
+
+              return (
+                <article key={summary.tag} className="tag-history-card">
+                  <div className="tag-history-card__head">
+                    <div>
+                      <strong>{summary.tag}</strong>
+                      <p className="muted">
+                        初回 {summary.firstAccuracyRate}% → 最新 {summary.latestAccuracyRate}%
+                      </p>
+                    </div>
+                    <span
+                      className={`trend-badge trend-badge--${
+                        summary.improvementDelta > 0
+                          ? "up"
+                          : summary.improvementDelta < 0
+                            ? "down"
+                            : "flat"
+                      }`}
+                    >
+                      {formatSignedPoints(summary.improvementDelta)}
+                    </span>
+                  </div>
+
+                  <div
+                    className="history-sparkline"
+                    aria-hidden="true"
+                    style={{ gridTemplateColumns: `repeat(${historyPoints.length}, minmax(0, 1fr))` }}
+                  >
+                    {historyPoints.map((point, index) => (
+                      <span
+                        key={`${summary.tag}-${point.sessionId}`}
+                        className={`history-sparkline__bar${
+                          index === historyPoints.length - 1 ? " is-latest" : ""
+                        }`}
+                        style={{ height: `${Math.max(point.accuracyRate, 12)}%` }}
+                      />
+                    ))}
+                  </div>
+
+                  <div
+                    className="history-meta"
+                    style={{ gridTemplateColumns: `repeat(${historyPoints.length}, minmax(0, 1fr))` }}
+                  >
+                    {historyPoints.map((point) => (
+                      <span key={`${summary.tag}-${point.sessionId}-label`}>{point.label}</span>
+                    ))}
+                  </div>
+
+                  <p className="muted">
+                    {summary.studiedSessionCount}回の学習で最高 {summary.bestAccuracyRate}% まで到達 /
+                    最終学習 {historyPoints.at(-1)?.label}
+                  </p>
+
+                  <Link
+                    href={`/review?tag=${encodeURIComponent(summary.tag)}`}
+                    className="button button--secondary"
+                  >
+                    このタグを復習
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="muted">
+            改善履歴は、同じタグを2回以上学ぶと表示されます。まずは復習を重ねて変化を育てていきましょう。
+          </p>
+        )}
+      </article>
+
       <article className="card">
         <h2 className="section-title">トピック別の進み具合</h2>
         <div className="progress-list">
@@ -130,4 +222,16 @@ export const ProgressScreen = () => {
       </article>
     </section>
   );
+};
+
+const formatSignedPoints = (value: number) => {
+  if (value > 0) {
+    return `+${value}pt`;
+  }
+
+  if (value < 0) {
+    return `${value}pt`;
+  }
+
+  return "±0pt";
 };

@@ -86,6 +86,28 @@ export type TagSummary = {
   priorityScore: number;
 };
 
+export type TagHistoryPoint = {
+  sessionId: string;
+  label: string;
+  answeredAt: string;
+  answeredCount: number;
+  correctCount: number;
+  accuracyRate: number;
+};
+
+export type TagImprovementSummary = {
+  tag: string;
+  answeredCount: number;
+  studiedSessionCount: number;
+  firstAccuracyRate: number;
+  latestAccuracyRate: number;
+  bestAccuracyRate: number;
+  improvementDelta: number;
+  trend: "up" | "flat" | "down";
+  lastStudiedAt: string;
+  history: TagHistoryPoint[];
+};
+
 export type QuizResultSummary = {
   sessionId: string;
   title: string;
