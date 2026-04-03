@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
 import { BottomNav } from "@/components/BottomNav";
+import { PwaSupport } from "@/components/pwa/PwaSupport";
 
 import "./globals.css";
 
@@ -12,8 +13,17 @@ export const metadata: Metadata = {
   title: "ビジネスマナークイズ",
   description: "新卒女性社員向けの、やさしく可愛いビジネスマナー学習アプリ",
   applicationName: "ビジネスマナークイズ",
+  manifest: "/manifest.webmanifest",
   alternates: {
     canonical: "/",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ビジネスマナークイズ",
+  },
+  formatDetection: {
+    telephone: false,
   },
   openGraph: {
     type: "website",
@@ -27,6 +37,13 @@ export const metadata: Metadata = {
     title: "ビジネスマナークイズ",
     description: "新卒女性社員向けの、やさしく可愛いビジネスマナー学習アプリ",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ef7f8e",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -44,6 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Link>
           </header>
           <main className="site-main">{children}</main>
+          <PwaSupport />
           <BottomNav />
         </div>
       </body>

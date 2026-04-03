@@ -663,6 +663,34 @@ button.tag-summary-card {
   transform: translateX(-50%);
 }
 
+.install-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 104px;
+  z-index: 29;
+  display: grid;
+  gap: 14px;
+  width: min(calc(100% - 24px), 760px);
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+}
+
+.install-banner__content {
+  display: grid;
+  gap: 6px;
+}
+
+.install-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .bottom-nav__item {
   display: inline-flex;
   align-items: center;
@@ -738,5 +766,10 @@ button.tag-summary-card {
   .bottom-nav {
     gap: 8px;
     padding: 8px;
+  }
+
+  .install-banner {
+    bottom: 92px;
+    padding: 16px;
   }
 }
