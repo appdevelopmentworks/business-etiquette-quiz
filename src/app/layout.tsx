@@ -5,37 +5,27 @@ import { BottomNav } from "@/components/BottomNav";
 
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = resolveSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "ビジネスマナークイズ",
   description: "新卒女性社員向けの、やさしく可愛いビジネスマナー学習アプリ",
   applicationName: "ビジネスマナークイズ",
-  icons: {
-    icon: [{ url: "/brand/app-icon.png", type: "image/png" }],
-    shortcut: ["/brand/app-icon.png"],
-    apple: [{ url: "/brand/app-icon.png", type: "image/png" }],
+  alternates: {
+    canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "ja_JP",
+    url: "/",
     title: "ビジネスマナークイズ",
     description: "新卒女性社員向けの、やさしく可愛いビジネスマナー学習アプリ",
-    images: [
-      {
-        url: "/brand/link-preview.png",
-        width: 1200,
-        height: 630,
-        alt: "ビジネスマナークイズのリンクプレビュー画像",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "ビジネスマナークイズ",
     description: "新卒女性社員向けの、やさしく可愛いビジネスマナー学習アプリ",
-    images: ["/brand/link-preview.png"],
   },
 };
 
@@ -59,4 +49,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </body>
     </html>
   );
+}
+
+function resolveSiteUrl() {
+  const candidate =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_BRANCH_URL ??
+    process.env.VERCEL_URL ??
+    "http://localhost:3000";
+
+  return candidate.startsWith("http") ? candidate : `https://${candidate}`;
 }
