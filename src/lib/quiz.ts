@@ -31,7 +31,7 @@ export const getQuestionsForMode = ({
 }) => {
   let pool =
     mode === "review"
-      ? questions.filter((question) => reviewQuestionIds.includes(question.id))
+      ? getQuestionsByTopicIds(topicIds).filter((question) => reviewQuestionIds.includes(question.id))
       : getQuestionsByTopicIds(topicIds);
 
   if (difficulty && difficulty !== "おまかせ") {

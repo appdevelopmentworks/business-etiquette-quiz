@@ -43,7 +43,12 @@ export const QuizSetupScreen = ({ initialTopicId = "all" }: QuizSetupScreenProps
 
   const availableCount = useMemo(() => {
     if (mode === "review") {
-      return reviewCandidates.length;
+      return getQuestionsForMode({
+        topicIds: selectedTopicIds,
+        difficulty,
+        mode,
+        reviewQuestionIds: reviewCandidates,
+      }).length;
     }
 
     if (mode === "unlearned") {
